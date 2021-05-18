@@ -33,7 +33,11 @@ setup(
         "psycopg2>=2.8.0",
         "sqlalchemy>=1.4.0",
         "paho-mqtt>=1.5.1",
-        "bemserver-core @ git+ssh://git@github.com/BEMServer/bemserver-core.git@35b3b38#egg=bemserver-core",
+        (
+            "bemserver-core "
+            "@ git+https://git@github.com/BEMServer/bemserver-core.git@bd573b2"
+            "#egg=bemserver-core"
+        ),
     ],
     packages=find_packages(exclude=["tests*"]),
 )

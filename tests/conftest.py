@@ -4,14 +4,19 @@ import os
 import ssl
 import json
 import uuid
-import pytest
 import datetime as dt
-import paho.mqtt.client as mqttc
 from pathlib import Path
-from dotenv import load_dotenv
 
+import paho.mqtt.client as mqttc
 from bemserver_core.database import db
 from bemserver_core import model as core_model
+from bemserver_core.testutils import setup_db
+
+import pytest
+from pytest_postgresql import factories as ppf
+
+from dotenv import load_dotenv
+
 from bemserver_service_acquisition_mqtt import model as svc_model, decoders
 from bemserver_service_acquisition_mqtt.service import MQTT_CLIENT_ID
 
@@ -19,19 +24,15 @@ from bemserver_service_acquisition_mqtt.service import MQTT_CLIENT_ID
 load_dotenv('.env')
 
 
-@pytest.fixture
-def db_url():
-    return os.getenv("TEST_SQLALCHEMY_DATABASE_URI")
+postgresql_proc = ppf.postgresql_proc(
+    postgres_options="-c shared_preload_libraries='timescaledb'"
+)
+postgresql = ppf.postgresql('postgresql_proc')
 
 
 @pytest.fixture
-def database(db_url):
-    db.set_db_url(db_url)
-    db.setup_tables()
-    yield db
-    db.session.remove()
-    # Destroy DB engine, mainly for threaded code (as MQTT service).
-    db.dispose()
+def database(postgresql):
+    yield from setup_db(postgresql)
 
 
 @pytest.fixture(params=[{}])
@@ -204,6 +205,12 @@ def publisher(topic_name):
 
     pub_cli.loop_stop()
     pub_cli.disconnect()
+
+
+@pytest.fixture
+def db_url():
+    """Dummy but realistic DB URL for the tests"""
+    return "postgresql+psycopg2://user:password@localhost:5432/bemserver-test"
 
 
 @pytest.fixture

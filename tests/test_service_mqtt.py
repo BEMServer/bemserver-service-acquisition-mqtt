@@ -4,13 +4,14 @@ import time
 import argparse
 import json
 import logging
-import pytest
-import sqlalchemy as sqla
 from pathlib import Path
 
+import sqlalchemy as sqla
 from bemserver_core.database import db
 from bemserver_core.model import TimeseriesData
-from bemserver_service_acquisition_mqtt.model import TopicBySubscriber
+
+import pytest
+
 from bemserver_service_acquisition_mqtt.service import Service
 from bemserver_service_acquisition_mqtt import SERVICE_LOGNAME
 from bemserver_service_acquisition_mqtt.__main__ import (
@@ -28,15 +29,14 @@ class TestServiceMQTT:
         assert db.engine is not None
         assert str(db.engine.url) == db_url
 
-    def test_service_mqtt_set_db_url_already_done(
-            self, db_url, tmpdir, database):
+    def test_service_mqtt_set_db_url_already_done(self, tmpdir, database):
 
         svc = Service(str(tmpdir))
         assert db.engine is not None
-        assert str(db.engine.url) == db_url
-        svc.set_db_url(db_url)
+        assert str(db.engine.url) == str(database.url)
+        svc.set_db_url(database.url)
         assert db.engine is not None
-        assert str(db.engine.url) == db_url
+        assert str(db.engine.url) == str(database.url)
 
     def test_service_mqtt_run(
             self, tmpdir, database, subscriber, topic, publisher):
@@ -130,10 +130,9 @@ class TestServiceMQTT:
         rows = db.session.execute(stmt).all()
         assert len(rows) >= 1
 
-    def test_service_mqtt_nothing_to_do(self, db_url, tmpdir):
+    def test_service_mqtt_nothing_to_do(self, database, tmpdir):
         svc = Service(str(tmpdir))
-        svc.set_db_url(db_url)
-        db.setup_tables()  # init database (for this test only)
+        svc.set_db_url(database.url)
         with pytest.raises(ServiceError) as exc:
             svc.run()
             assert str(exc) == (
