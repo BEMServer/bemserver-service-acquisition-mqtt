@@ -137,15 +137,3 @@ class TestBrokerModel:
 
         subscriber.disconnect()
         assert not subscriber.is_connected
-
-    def test_broker_websockets(
-            self, database, broker, subscriber, client_id):
-
-        broker.port = 8080
-        broker.transport = Broker.Transport.websockets.value
-
-        subscriber.connect(client_id)
-        assert subscriber.is_connected
-
-        subscriber.disconnect()
-        assert not subscriber.is_connected
