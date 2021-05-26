@@ -29,11 +29,14 @@ setup(
     ],
     python_requires=">=3.7",
     install_requires=[
-        "python-dotenv>=0.9.0",
         "psycopg2>=2.8.0",
         "sqlalchemy>=1.4.0",
         "paho-mqtt>=1.5.1",
-        "bemserver-core @ git+ssh://git@github.com/BEMServer/bemserver-core.git@35b3b38#egg=bemserver-core",
+        (
+            "bemserver-core "
+            "@ git+https://git@github.com/BEMServer/bemserver-core.git@bd573b2"
+            "#egg=bemserver-core"
+        ),
     ],
     packages=find_packages(exclude=["tests*"]),
 )
