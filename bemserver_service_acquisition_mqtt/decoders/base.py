@@ -36,13 +36,15 @@ class PayloadDecoderBase(abc.ABC):
 
     @abc.abstractmethod
     def _decode(self, raw_payload):
-        raise NotImplementedError
+        return dt.datetime.now(dt.timezone.utc), {}
 
     def _save_to_db(self, timestamp, values):
         if self._db_topic is None:
             raise PayloadDecoderError("No topic defined to save to database!")
 
         for topic_link in self._db_topic.links:
+            if topic_link.payload_field.name not in values:
+                continue
             tsdata = TimeseriesData(
                 timeseries_id=topic_link.timeseries_id,
                 timestamp=timestamp,

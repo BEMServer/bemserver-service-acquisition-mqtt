@@ -100,24 +100,13 @@ class TestDecoders:
 
         chirpstack_decoder = decoders.PayloadDecoderChirpstackARF8200AA(None)
         assert chirpstack_decoder.fields == ["channelA", "channelB"]
-        payload_to_decode = {
-            "rxInfo": [
-                {
-                    "time": "2021-05-03T17:28:55.041898Z",
-                },
-            ],
-            "objectJSON": {
-                "channelA": {
-                    "unit": "mA",
-                    "value": 4.126,
-                },
-                "channelB": {
-                    "unit": "mA",
-                    "value": 4.131,
-                },
-            },
-        }
-        ts, values = chirpstack_decoder._decode(json.dumps(payload_to_decode))
+        payload_to_decode = (
+            '{"rxInfo":[{"time":"2021-05-03T17:28:55.041898Z"}],'
+            '"objectJSON":"{\\"channelA\\":{\\"unit\\":\\"mA\\",'
+            '\\"value\\":4.126},\\"channelB\\":{\\"unit\\":\\"mA\\",'
+            '\\"value\\":4.131}}"}'
+        )
+        ts, values = chirpstack_decoder._decode(payload_to_decode)
         assert ts == timestamp
         assert values == {
             "channelA": 4.126,
@@ -126,9 +115,16 @@ class TestDecoders:
 
         chirpstack_decoder = decoders.PayloadDecoderChirpstackEM300TH868(None)
         assert chirpstack_decoder.fields == ["temperature", "humidity"]
-        payload_to_decode["objectJSON"] = {
-            "humidity": 0,
-            "temperature": 21,
+        payload_to_decode = {
+            "rxInfo": [
+                {
+                    "time": "2021-05-03T17:28:55.041898Z",
+                },
+            ],
+            "objectJSON": {
+                "humidity": 0,
+                "temperature": 21,
+            },
         }
         ts, values = chirpstack_decoder._decode(json.dumps(payload_to_decode))
         assert ts == timestamp
