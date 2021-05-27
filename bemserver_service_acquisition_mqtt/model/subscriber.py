@@ -83,6 +83,10 @@ class Subscriber(Base, BaseMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._init_on_load()
+
+    @sqla.orm.reconstructor
+    def _init_on_load(self):
         self._client_id = None
         self._client = None
         self._client_session_present = False

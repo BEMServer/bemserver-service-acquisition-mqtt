@@ -85,6 +85,10 @@ class Broker(Base, BaseMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._init_on_load()
+
+    @sqla.orm.reconstructor
+    def _init_on_load(self):
         self._tls_cert_dirpath = None
         self._tls_cert_filename = f"{self.host}.crt"
 
