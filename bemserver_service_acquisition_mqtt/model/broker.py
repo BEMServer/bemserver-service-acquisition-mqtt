@@ -64,7 +64,7 @@ class Broker(Base, BaseMixin):
 
     @property
     def tls_certificate_filepath(self):
-        if self.tls_certificate_dirpath is not None:
+        if self.tls_certificate_dirpath and self.tls_certificate:
             return self.tls_certificate_dirpath / self._tls_cert_filename
         return None
 
@@ -76,6 +76,8 @@ class Broker(Base, BaseMixin):
 
     @tls_certificate_dirpath.setter
     def tls_certificate_dirpath(self, value):
+        logger.debug(f"{self._log_header} setting TLS certificate directory "
+                     f"path to {str(value)}...")
         self._tls_cert_dirpath = Path(value)
         self._generate_tls_cert_file()
 
@@ -121,6 +123,8 @@ class Broker(Base, BaseMixin):
 
     def _generate_tls_cert_file(self):
         logger.info(f"{self._log_header} generating TLS cert file...")
+        if not self.tls_certificate:
+            logger.warning(f"{self._log_header} TLS cert data is empty!")
         with open(str(self.tls_certificate_filepath), "w") as f:
-            f.write(self.tls_certificate)
+            f.write(self.tls_certificate or "")
         logger.debug(f"{self._log_header} TLS cert file generated!")
