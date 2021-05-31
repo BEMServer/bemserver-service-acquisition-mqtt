@@ -116,17 +116,20 @@ class Subscriber(Base, BaseMixin):
     def _client_apply_security(self):
         # Apply MQTT security (authentication, TLS...).
         logger.debug(f"{self._log_header} applying security on MQTT client...")
+        logger.debug(f"{self._log_header} MQTT client authentication"
+                     f" {'' if self.must_authenticate else 'NOT '}required")
         if self.must_authenticate:
-            logger.debug(f"{self._log_header} use MQTT client authentication")
             self._client.username_pw_set(self.username, password=self.password)
+        logger.debug(f"{self._log_header} MQTT client TLS cert"
+                     f" {'' if self.broker.use_tls else 'NOT '}required")
         if self.broker.use_tls:
-            logger.debug(f"{self._log_header} use MQTT client TLS cert")
             self._client.tls_set(
                 ca_certs=self.broker.tls_certificate_filepath,
                 cert_reqs=self.broker.tls_verifymode,
                 tls_version=self.broker.tls_version)
 
     def _client_connect(self):
+        logger.debug(f"{self._log_header} connecting MQTT client...")
         # Set client connection properties.
         cli_conn_kwargs = {
             "host": self.broker.host,
@@ -233,6 +236,8 @@ class Subscriber(Base, BaseMixin):
 
     def subscribe_all(self):
         """Automatically make the MQTT client subscribe to all its topics."""
+        logger.info(f"{self._log_header} subscribing to all topics"
+                    f" ({len(self.topics)})...")
         for topic in self.topics:
             self.subscribe(topic)
 
@@ -251,6 +256,8 @@ class Subscriber(Base, BaseMixin):
     def unsubscribe_all(self):
         """Automatically make the MQTT client unsubscribe from all its topics.
         """
+        logger.info(f"{self._log_header} unsubscribing from all topics"
+                    f" ({len(self.topics)})...")
         for topic in self.topics:
             self.unsubscribe(topic)
 
