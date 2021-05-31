@@ -3,18 +3,22 @@
 
 from setuptools import setup, find_packages
 
+import bemserver_service_acquisition_mqtt as svc
+
+
 # Get the long description from the README file
 with open("README.rst", encoding="utf-8") as f:
     long_description = f.read()
 
+
 setup(
-    name="bemserver-service-acquisition-mqtt",
-    version="0.0.1",
-    description="BEMServer service: timeseries acquisition through MQTT",
+    name=svc.__binname__,
+    version=svc.__version__,
+    description=svc.__description__,
     long_description=long_description,
     # url="",
-    author="Nobatek/INEF4",
-    author_email="dfrederique@nobatek.inef4.com",
+    author=svc.__author__,
+    author_email=svc.__email__,
     # license="",
     # keywords=[
     # ],
@@ -29,6 +33,7 @@ setup(
     ],
     python_requires=">=3.7",
     install_requires=[
+        "click>=8.0.0",
         "psycopg2>=2.8.0",
         "sqlalchemy>=1.4.0",
         "paho-mqtt>=1.5.1",
@@ -39,4 +44,9 @@ setup(
         ),
     ],
     packages=find_packages(exclude=["tests*"]),
+    entry_points={
+        "console_scripts": [
+            f"{svc.__binname__} = {svc.__appname__}.__main__:main",
+        ],
+    },
 )

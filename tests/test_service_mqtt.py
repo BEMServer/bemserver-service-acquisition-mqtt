@@ -1,7 +1,6 @@
 """Service tests"""
 
 import time
-import argparse
 import json
 import logging
 from pathlib import Path
@@ -15,8 +14,7 @@ import pytest
 from bemserver_service_acquisition_mqtt.service import Service
 from bemserver_service_acquisition_mqtt import SERVICE_LOGNAME
 from bemserver_service_acquisition_mqtt.__main__ import (
-    _argtype_readable_file, load_config, init_logger)
-from bemserver_service_acquisition_mqtt.exceptions import ServiceError
+    load_config, init_logger)
 
 
 class TestServiceMQTT:
@@ -129,35 +127,6 @@ class TestServiceMQTT:
         # At least one timeseries data received.
         rows = db.session.execute(stmt).all()
         assert len(rows) >= 1
-
-    def test_service_mqtt_nothing_to_do(self, database, tmpdir):
-        svc = Service(str(tmpdir))
-        svc.set_db_url(database.url)
-        with pytest.raises(ServiceError) as exc:
-            svc.run()
-            assert str(exc) == (
-                "No subscribers available to run MQTT acquisition!")
-        assert svc._running_subscribers == []
-
-    def test_service_mqtt_main_argtype_readable_file(self, tmpdir):
-        filepath = Path(str(tmpdir)) / "test.txt"
-
-        # File does not exist.
-        with pytest.raises(argparse.ArgumentTypeError):
-            _argtype_readable_file(filepath)
-
-        # Create file to pass argtype validator.
-        filepath.touch()
-        assert _argtype_readable_file(filepath) == filepath
-
-        # Deny file reading to owner.
-        file_stat = filepath.stat()
-        file_stat_mode_backup = file_stat.st_mode
-        filepath.chmod(0o144)
-        # File read access is not allowed.
-        with pytest.raises(argparse.ArgumentTypeError):
-            _argtype_readable_file(filepath)
-        filepath.chmod(file_stat_mode_backup)
 
     def test_service_mqtt_main_load_config(self, json_service_config, tmpdir):
         filepath = Path(str(tmpdir)) / "service-config.json"

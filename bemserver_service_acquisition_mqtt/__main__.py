@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Launch MQTT acquisition service."""
+"""Launch MQTT acquisition service.
+
+This service can be managed through systemd (the service manager for Linux).
+See README for deployment instructions.
+"""
 
 import os
 import sys
-import argparse
+import signal
+import click
 import json
 import time
 import re
@@ -16,63 +21,90 @@ from bemserver_service_acquisition_mqtt.service import Service
 from bemserver_service_acquisition_mqtt.exceptions import ServiceError
 
 
+service = None
 logger = logging.getLogger(svc.SERVICE_LOGNAME)
 
 
-def main():
-    """Main program."""
-    cmd_args = parse_command_line(sys.argv)
-    svc_config = load_config(cmd_args.config_filepath)
-    init_logger(svc_config["logging"], verbose=cmd_args.verbose)
-    launch_service(svc_config)
-    return True
+def signal_term_handler(sigcode, frame):
+    """Callback for SIGTERM signal.
 
-
-def _argtype_readable_file(str_value):
-    """Check that a path value exists as a valid readable file.
-
-    :param str str_value: Input string argument value.
-    :returns Path: A readable file absolute path.
-    :raises argparse.ArgumentTypeError:
-        When the path value is either not a valid file or not readable.
+    This signal is sent by systemd when the service is stopping.
     """
-    file_path = Path(str_value)
-    if not file_path.is_file():
-        raise argparse.ArgumentTypeError(
-            f"Invalid readable_file value, not a file: {file_path}")
-    absolute_file_path = file_path.resolve()
-    if not os.access(str(absolute_file_path), os.R_OK):
-        raise argparse.ArgumentTypeError(
-            f"Invalid readable_file value, not readable: {file_path}")
-    return absolute_file_path
+    sig = signal.Signals(sigcode)
+    logger.debug(f"Service received {sig.name} ({sigcode}) signal.")
+    stop_service()
 
 
-def parse_command_line(argv):
-    """Parse command line argument. See -h option
+signal.signal(signal.SIGTERM, signal_term_handler)
 
-    :param list argv: Arguments on command line must include caller file name.
-    :returns argparse.Namespace: Argument values.
+
+def echo_version(ctx, param, value):
+    """Print service version."""
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo(svc.__description__)
+    click.echo(f"Version {svc.__version__}")
+    click.echo(svc.__copyright__)
+    ctx.exit()
+
+
+@click.command(short_help="Start the service.")
+@click.argument(
+    "config_file", type=click.types.Path(
+        exists=True, resolve_path=True, path_type=Path))
+@click.option(
+    "-v", "--verbose", is_flag=True, default=False, help="Print log messages.")
+@click.option(
+    "-d", "--debug", is_flag=True, default=False, help="Set debug mode.")
+@click.option(
+    "--version", is_flag=True, callback=echo_version, expose_value=False,
+    is_eager=True, help="Show application version.")
+def main(config_file, verbose, debug):
+    """BEMServer service - Timeseries acquisition through MQTT
+
+    CONFIG_FILE is the path name of the service configuration file.
+    \f
+
+    :param Path config_file: Service configuration file path.
+    :param bool verbose: (optional, default False)
+        If True prints log messages in console output.
+    :param bool debug: (optional, default False)
+        If True forces log level to DEBUG.
     """
-    formatter_class = argparse.RawDescriptionHelpFormatter
-    parser = argparse.ArgumentParser(
-        description=svc.__description__, formatter_class=formatter_class)
+    svc_config = load_config(config_file)
+    init_logger(svc_config["logging"], verbose=verbose, debug=debug)
 
-    parser.add_argument(
-        "--version", action="version", version=(
-            f"{svc.__binname__}\tversion {svc.__version__}"
-            f"\n{svc.__description__}\n(c) 2021 {svc.__author__}"),
-    )
-    parser.add_argument(
-        dest="config_filepath", type=_argtype_readable_file,
-        help="configuration file path to use",
-    )
-    parser.add_argument(
-        "-v", "--verbose", dest="verbose", action="store_true", default=False,
-        help="print log messages",
-    )
+    logger.info(f"Service PID: {os.getpid()}...")
 
-    # Parse and return command line arguments.
-    return parser.parse_args(argv[1:])
+    global service
+    service = Service(svc_config["working_dirpath"])
+    service.set_db_url(svc_config["db_url"])
+    try:
+        service.run()
+    except ServiceError as exc:
+        logger.error(f"MQTT acquisition service error: {str(exc)}")
+
+    try:
+        while service.is_running:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.warning("Service received Ctrl+C and will stop.")
+    finally:
+        stop_service()
+
+
+def stop_service():
+    """Stop the service and exit program."""
+    if service is None:
+        logger.warning("Can not stop service as it is not even instantiated!")
+        sys.exit(666)
+
+    if not service.is_running:
+        logger.warning("Can not stop service as it is not running!")
+        sys.exit(666)
+
+    service.stop()
+    sys.exit(0)
 
 
 def load_config(config_filepath, *, verify=True):
@@ -92,12 +124,14 @@ def load_config(config_filepath, *, verify=True):
     return svc_config
 
 
-def init_logger(log_config, *, verbose=False):
+def init_logger(log_config, *, verbose=False, debug=False):
     """Initialize service logger.
 
     :param dict log_config: An instance of service log configuration.
     :param bool verbose: (optional, default False)
-        Print log messages in console output.
+        If True prints log messages in console output.
+    :param bool debug: (optional, default False)
+        If True forces log level to DEBUG.
     """
     # Create our custom record formatters.
     defaultFormat = (
@@ -109,7 +143,8 @@ def init_logger(log_config, *, verbose=False):
     formatter.converter = time.gmtime
 
     # Configure logger.
-    logger.setLevel(log_config.get("level", logging.WARNING))
+    logger.setLevel(
+        logging.DEBUG if debug else log_config.get("level", logging.WARNING))
     # Create a stream handler (console out) for logger.
     if verbose:
         stream_handler = logging.StreamHandler()
@@ -131,27 +166,14 @@ def init_logger(log_config, *, verbose=False):
     # Do not propagate logging to handlers if disabled.
     logger.propagate = log_config.get("enabled", True)
 
-    logger.info("Logger initialized, [%s] level.",
-                logging.getLevelName(logger.level))
+    logger.info(
+        f"Logger initialized, [{logging.getLevelName(logger.level)}] level.")
     if "dirpath" in log_config:
-        logger.info("Current log folder path ([%d] days backup): [%s]",
-                    log_config["history"], str(log_config["dirpath"]))
-
-
-def launch_service(svc_config):
-    """Launch MQTT acquisition service .
-
-    Relies on brokers, subscribers and topics stored in database.
-    """
-    logger.info("Launching MQTT acquisition service (PID %s)...", os.getpid())
-    service = Service(svc_config["working_dirpath"])
-    service.set_db_url(svc_config["db_url"])
-    try:
-        service.run()
-    except ServiceError as exc:
-        logger.error("MQTT acquisition service error: %s", str(exc))
+        logger.info(
+            f"Current log folder path ([{log_config['history']}] days backup):"
+            f" [{str(log_config['dirpath'])}]")
 
 
 if __name__ == "__main__":
 
-    sys.exit(main())
+    main()
